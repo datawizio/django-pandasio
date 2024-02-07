@@ -1,6 +1,6 @@
 # django-pandasio
 
-## Install
+## Installation
 
 ```bash
 pip install git+https://github.com/datawizio/django-pandasio.git
