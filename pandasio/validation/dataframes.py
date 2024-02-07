@@ -13,7 +13,8 @@ from rest_framework.settings import api_settings
 from rest_framework.utils import representation
 from rest_framework.fields import MISSING_ERROR_MESSAGE, empty
 
-from pandasio.db.utils import get_dataframe_saver_backend
+from ..db.utils import get_dataframe_saver_backend
+from .errors import FieldValidationErrorManager
 
 ALL_FIELDS = '__all__'
 
@@ -27,7 +28,13 @@ class DataFrameSerializer(serializers.Serializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.error_manager = FieldValidationErrorManager()
         self._errors = defaultdict(list)
+        self._human_errors = defaultdict(list)
+
+    @property
+    def human_errors(self) -> dict:
+        return self._human_errors
 
     def fail(self, key, field=api_settings.NON_FIELD_ERRORS_KEY, **kwargs):
         try:
@@ -84,6 +91,7 @@ class DataFrameSerializer(serializers.Serializer):
 
             if field.errors:
                 self._errors[field.field_name] = field.errors
+                self._human_errors[field.field_name] = field.human_errors
 
         return ret
 
@@ -109,6 +117,9 @@ class DataFrameSerializer(serializers.Serializer):
             except ValidationError as exc:
                 self._validated_data = pd.DataFrame()
                 self._errors[api_settings.NON_FIELD_ERRORS_KEY] = exc.detail
+
+        if errors := self.error_manager.errors:
+            self._human_errors[api_settings.NON_FIELD_ERRORS_KEY] += errors
 
         if self._errors and raise_exception:
             raise ValidationError(self._errors)
@@ -147,9 +158,11 @@ class DataFrameSerializer(serializers.Serializer):
                 # attempting to accumulate a list of errors.
                 if isinstance(exc.detail, dict):
                     raise
+                self.error_manager.log_validator_error(validator=validator, s=data)
                 data = validator.get_valid_data(data)
                 self._errors[api_settings.NON_FIELD_ERRORS_KEY] = exc.detail
             except DjangoValidationError as exc:
+                self.error_manager.log_validator_error(validator=validator, s=data)
                 data = validator.get_valid_data(data)
                 self._errors[api_settings.NON_FIELD_ERRORS_KEY] = get_error_detail(exc)
         return data

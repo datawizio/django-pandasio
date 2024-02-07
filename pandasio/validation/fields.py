@@ -10,7 +10,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.fields import get_error_detail, empty
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from pandasio.validation import validators
+from . import errors
+from . import validators
 
 
 __all__ = [
@@ -41,11 +42,16 @@ class Field(serializers.Field):
         super().__init__(*args, **kwargs)
         assert self.allow_null or self.replace_null is None, NOT_ALLOW_NULL_REPLACE_NULL
 
+        self.error_manager = errors.FieldValidationErrorManager()
         self._errors = set()
 
     @property
     def errors(self):
         return self._errors
+
+    @property
+    def human_errors(self):
+        return self.error_manager.errors
 
     def fail(self, key, **kwargs):
         try:
@@ -75,6 +81,7 @@ class Field(serializers.Field):
 
         if column is serializers.empty:
             if self.required:
+                self.error_manager.log_error(error=errors.FieldRequiredError(), s=None)
                 self.fail('required')
                 return True, pd.Series()
             return True, self.get_default()
@@ -83,6 +90,7 @@ class Field(serializers.Field):
             if self.replace_null is not None:
                 column = column.fillna(self.replace_null)
             elif not self.allow_null:
+                self.error_manager.log_error(error=errors.NullNotAllowedError(), s=column)
                 self.fail('null')
                 return False, column[column.notnull()]
             # Nullable `source='*'` fields should not be skipped when its named
@@ -140,9 +148,11 @@ class Field(serializers.Field):
                     print('Raise dict Validation/fields')
                     print(exc.detail)
                     raise
+                self.error_manager.log_validator_error(validator=validator, s=value)
                 value = validator.get_valid_data(value)
                 self._errors.add(exc.detail)
             except DjangoValidationError as exc:
+                self.error_manager.log_validator_error(validator=validator, s=value)
                 value = validator.get_valid_data(value)
                 self._errors |= set(get_error_detail(exc))
 
@@ -197,6 +207,7 @@ class IntegerField(Field):
             else:
                 data = data.astype(int)
         except ValueError:
+            self.error_manager.log_error(error=errors.NonNumericValueError(), s=data)
             self.fail('invalid')
 
             def is_valid_element(el):
@@ -207,8 +218,9 @@ class IntegerField(Field):
                     return True
                 except ValueError:
                     return False
-            return data[data.apply(lambda x: is_valid_element(x))].astype(int)
+            return data[data.apply(lambda x: is_valid_element(x))].dropna().astype(int)
         except OverflowError:
+            self.error_manager.log_error(error=errors.NonNumericValueError(), s=data)
             self.fail('overflow')
 
         return data
@@ -261,6 +273,7 @@ class FloatField(IntegerField):
             else:
                 data = data.astype(float)
         except ValueError:
+            self.error_manager.log_error(error=errors.NonNumericValueError(), s=data)
             self.fail('invalid')
 
             def is_valid_element(el):
@@ -320,6 +333,7 @@ class CharField(Field):
                 data = data.astype(str)
         data = data.str.strip() if self.trim_whitespace else data
         if (data == '').any() and not self.allow_blank:
+            self.error_manager.log_error(error=errors.BlankNotAllowed(), s=data)
             self.fail('blank')
             return data[data != '']
         if self.trim_extra and self.max_length is not None:
@@ -347,6 +361,7 @@ class DateField(Field):
             if self.allow_null:
                 data = data.apply(lambda x: x if not pd.isnull(x) else self.replace_null, convert_dtype=False)
         except ValueError:
+            self.error_manager.log_error(error=errors.IncorrectDateFormatError(format=self.format), s=data)
             self.fail('invalid', format=self.format)
 
             series = pd.to_datetime(data, format=self.format, errors='coerce').dt.date
@@ -374,6 +389,9 @@ class DateTimeField(Field):
             if self.allow_null:
                 data = data.apply(lambda x: x if not pd.isnull(x) else None, convert_dtype=False)
         except ValueError:
+            self.error_manager.log_error(
+                error=errors.IncorrectDateTimeFormatError(format=self.format), s=data
+            )
             self.fail('invalid', format=self.format)
 
             series = pd.to_datetime(data, format=self.format, errors='coerce')
