@@ -118,9 +118,6 @@ class DataFrameSerializer(serializers.Serializer):
                 self._validated_data = pd.DataFrame()
                 self._errors[api_settings.NON_FIELD_ERRORS_KEY] = exc.detail
 
-        if errors := self.error_manager.errors:
-            self._human_errors[api_settings.NON_FIELD_ERRORS_KEY] += errors
-
         if self._errors and raise_exception:
             raise ValidationError(self._errors)
 
@@ -165,6 +162,9 @@ class DataFrameSerializer(serializers.Serializer):
                 self.error_manager.log_validator_error(validator=validator, s=data)
                 data = validator.get_valid_data(data)
                 self._errors[api_settings.NON_FIELD_ERRORS_KEY] = get_error_detail(exc)
+
+        if errors := self.error_manager.errors:
+            self._human_errors[api_settings.NON_FIELD_ERRORS_KEY] += errors
         return data
 
     def save(self, using='default'):
