@@ -46,7 +46,7 @@ class FieldValidationErrorManager:
         elif isinstance(validator, validators.UniqueTogetherValidator):
             result = NonUniqueTogetherError(unique_together_fields=validator.limit_value).to_dict(s)
         else:
-            raise Exception("Validator not supported.")
+            raise NotImplementedError(f"Support for `{validator.__class__.__name__}` validator not implemented yet.")
         self.errors.append(result)
 
 
