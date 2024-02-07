@@ -1,13 +1,14 @@
 # django-pandasio
 
-**Install**
+## Install
 
 ```bash
-pip install git+https://github.com/NikitaZakharov/django-pandasio.git
+pip install git+https://github.com/datawizio/django-pandasio.git
 ```
 
-**Example**
+## Examples
 
+### DataFrame Serializer
 ```python
 import pandas as pd
 import pandasio
@@ -47,4 +48,56 @@ dataframe = pd.DataFrame(
 serializer = ProductSerializer(data=dataframe)
 if serializer.is_valid():
     serializer.save()
+```
+
+### Get detailed validation errors
+```python
+import pandas as pd
+import pandasio
+
+
+class TestSerializer(pandasio.DataFrameSerializer):
+
+    id = pandasio.IntegerField()
+    name = pandasio.CharField(max_length=9)
+
+    class Meta:
+        validators = [pandasio.UniqueTogetherValidator(['id', "name"])]
+
+
+dataframe = pd.DataFrame(
+    data=[
+        ['234556', 'Coca-Cola'],
+        ['234556', 'Coca-Cola'],
+        ['234556', None],
+        [None, "0123456789"],
+    ],
+    columns=['id', 'name']
+)
+
+serializer = TestSerializer(data=dataframe)
+serializer.is_valid()
+print(serializer.errors)
+"""
+{
+    'id': {'This column cannot contain null values'},
+    'name': {ErrorDetail(string='Ensure column values have no more than 9 characters', code='max_length'), 'This column cannot contain null values'},
+    'non_field_errors': [ErrorDetail(string="Ensure values are not duplicated by ['id', 'name']", code='duplicated')]}
+"""
+print(serializer.human_errors)
+"""
+    defaultdict(
+        <class 'list'>,
+        {
+            'id': [{'reason': 'NULL_NOT_ALLOWED', 'indexes': [3]}],
+            'name': [
+                {'reason': 'NULL_NOT_ALLOWED', 'indexes': [2]},
+                {'reason': 'MAX_LENGTH_VALUE', 'indexes': [3], 'limit_value': 9}
+            ],
+            'non_field_errors': [
+                {'reason': 'NON_UNIQUE_TOGETHER', 'indexes': [1], 'unique_together_fields': ['id', 'name']}
+            ]
+        }
+    )
+"""
 ```
