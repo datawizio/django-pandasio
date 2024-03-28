@@ -125,15 +125,15 @@ class Field(serializers.Field):
         and either raise a `ValidationError` or simply return.
         """
         for validator in self.validators:
-            if hasattr(validator, 'set_context'):
-                warnings.warn(
-                    "Method `set_context` on validators is deprecated and will "
-                    "no longer be called starting with 3.13. Instead set "
-                    "`requires_context = True` on the class, and accept the "
-                    "context as an additional argument.",
-                    RemovedInDRF313Warning, stacklevel=2
-                )
-                validator.set_context(self)
+            # if hasattr(validator, 'set_context'):
+            #     warnings.warn(
+            #         "Method `set_context` on validators is deprecated and will "
+            #         "no longer be called starting with 3.13. Instead set "
+            #         "`requires_context = True` on the class, and accept the "
+            #         "context as an additional argument.",
+            #         RemovedInDRF313Warning, stacklevel=2
+            #     )
+            #     validator.set_context(self)
 
             try:
                 if getattr(validator, 'requires_context', False):
