@@ -13,5 +13,5 @@ setup(
    platforms=["any"],
    packages=['pandasio', 'pandasio.db', 'pandasio.validation'],
    package_dir={'pandasio': 'pandasio'},
-   install_requires=["six", "pandas", "django", "django-rest-framework"],
+   install_requires=["six", "pandas", "django==4.1.7", "djangorestframework==3.14.0"],
 )
