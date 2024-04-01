@@ -56,7 +56,7 @@ class NonNumericValueError(Error):
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
         return self.form_response(
-            s=s.loc[s.apply(lambda x: not str(x).lstrip("-").isnumeric())].dropna()
+            s=s.loc[s.apply(lambda x: not str(x).lstrip("-").replace(".", "", 1).isnumeric())].dropna()
         )
 
 
