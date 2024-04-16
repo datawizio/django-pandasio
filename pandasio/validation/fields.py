@@ -273,7 +273,6 @@ class FloatField(IntegerField):
             else:
                 data = data.astype(float)
         except ValueError:
-            self.error_manager.log_error(error=errors.NonNumericValueError(), s=data)
             self.fail('invalid')
 
             def is_valid_element(el):
@@ -284,7 +283,9 @@ class FloatField(IntegerField):
                     return True
                 except ValueError:
                     return False
-            return data[data.apply(lambda x: is_valid_element(x))].astype(float)
+            mask = data.apply(lambda x: is_valid_element(x))
+            self.error_manager.log_error(error=errors.NonNumericValueError(), s=data[~mask])
+            return data[mask].astype(float)
 
         return data
 
