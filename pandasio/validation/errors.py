@@ -119,7 +119,7 @@ class NonUniqueTogetherError(Error):
 
     def to_dict(self, s: pd.DataFrame, *args: Any, **kwargs: Any) -> dict:
         return self.form_response(
-            s=s[s.duplicated(subset=self.unique_together_fields)],
+            s=s[s.duplicated(subset=self.unique_together_fields, keep=False)],
             unique_together_fields=self.unique_together_fields,
         )
 
