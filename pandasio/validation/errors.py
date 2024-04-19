@@ -78,7 +78,7 @@ class NullNotAllowedError(Error):
 
 @dataclass
 class MinValueError(Error):
-    CODE = "MIN_VALUE"
+    CODE = "MIN_VALUE_EX"
     min_value: int
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
@@ -87,7 +87,7 @@ class MinValueError(Error):
 
 @dataclass
 class MaxValueError(Error):
-    CODE = "MAX_VALUE"
+    CODE = "MAX_VALUE_EX"
     max_value: int
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
