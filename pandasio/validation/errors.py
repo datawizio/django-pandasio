@@ -168,3 +168,11 @@ class BlankNotAllowed(Error):
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
         return self.form_response(s=s.loc[s == ''])
+
+
+@dataclass
+class IncorrectBooleanFormatErorr(Error):
+    CODE = "INCORRECT_BOOLEAN_FORMAT"
+
+    def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
+        return self.form_response(s=s)
