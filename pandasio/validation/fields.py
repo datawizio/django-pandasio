@@ -3,9 +3,6 @@ import pandas as pd
 
 from rest_framework import serializers
 from rest_framework.fields import MISSING_ERROR_MESSAGE
-from rest_framework import (
-    RemovedInDRF313Warning
-)
 from rest_framework.exceptions import ValidationError
 from rest_framework.fields import get_error_detail, empty
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -131,7 +128,7 @@ class Field(serializers.Field):
                     "no longer be called starting with 3.13. Instead set "
                     "`requires_context = True` on the class, and accept the "
                     "context as an additional argument.",
-                    RemovedInDRF313Warning, stacklevel=2
+                    stacklevel=2,
                 )
                 validator.set_context(self)
 
