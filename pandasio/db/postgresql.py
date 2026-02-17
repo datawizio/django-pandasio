@@ -1,7 +1,7 @@
 import io
 
-from pandasio.db.base import BaseDataFrameDatabaseSaver
-from pandasio.db.utils import get_unique_field_names, get_upsert_clause_sql, get_insert_values_sql
+from .base import BaseDataFrameDatabaseSaver
+from .utils import get_unique_field_names, get_upsert_clause_sql, get_insert_values_sql
 
 
 class DataFrameDatabaseSaver(BaseDataFrameDatabaseSaver):
