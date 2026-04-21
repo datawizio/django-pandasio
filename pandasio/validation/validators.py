@@ -71,6 +71,16 @@ class UniqueTogetherValidator(BaseValidator):
     message = 'Ensure values are not duplicated by %(limit_value)s'
     code = 'duplicated'
 
+    def __init__(self, limit_value: list | tuple, message=None, *, visible_names: list | tuple = ()) -> None:
+        """
+        Many fields could have another `source` and the user would see different names in warning
+        To avoid this, we use the `visible_names` variable
+        (Use system columns to validate, but show them with client names)
+        """
+        super().__init__(limit_value, message)
+        if visible_names:
+            self.message = self.message % {"limit_value": visible_names}
+
     def get_valid_data(self, data):
         return data[~data.duplicated(subset=self.limit_value)]
 
