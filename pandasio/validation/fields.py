@@ -57,7 +57,7 @@ class Field(serializers.Field):
             class_name = self.__class__.__name__
             msg = MISSING_ERROR_MESSAGE.format(class_name=class_name, key=key)
 
-        self._errors.add(msg)
+        self._errors.add(msg) if isinstance(self._errors, set) else self._errors.append(msg)
 
     def to_internal_value(self, data):
         return data
