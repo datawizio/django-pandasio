@@ -42,7 +42,12 @@ class DataFrameSerializer(serializers.Serializer):
         except KeyError:
             class_name = self.__class__.__name__
             msg = MISSING_ERROR_MESSAGE.format(class_name=class_name, key=key)
-        self._errors[field].append(msg)
+
+        errors = self._errors[field]
+        if not isinstance(errors, list):
+            self._errors[field] = errors = list(errors) # Could be set if error from field
+
+        errors.append(msg)
 
     def to_internal_value(self, data):
         """

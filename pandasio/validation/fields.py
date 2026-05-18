@@ -57,7 +57,7 @@ class Field(serializers.Field):
             class_name = self.__class__.__name__
             msg = MISSING_ERROR_MESSAGE.format(class_name=class_name, key=key)
 
-        self._errors.add(msg)
+        self._errors.add(msg) if isinstance(self._errors, set) else self._errors.append(msg)
 
     def to_internal_value(self, data):
         return data
@@ -200,7 +200,11 @@ class IntegerField(Field):
 
         try:
             if self.allow_null:
-                data = data.apply(lambda x: int(x) if not pd.isnull(x) else None, convert_dtype=False)
+                data = pd.Series(
+                    [int(x) if not pd.isnull(x) else None for x in data],
+                    index=data.index,
+                    dtype=object,
+                )
             else:
                 data = data.astype(int)
         except ValueError:
@@ -247,12 +251,20 @@ class NullBooleanField(Field):
     def to_type(self, data):
         if data.dtype == bool:
             return data
-        return data.apply(lambda x: bool(x) if not pd.isnull(x) else None, convert_dtype=False)
+        return pd.Series(
+            [bool(x) if not pd.isnull(x) else None for x in data],
+            index=data.index,
+            dtype=object,
+        )
 
     def to_internal_value(self, data):
         if data.dtype == bool:
             return data
-        return data.apply(lambda x: bool(x) if not pd.isnull(x) else None, convert_dtype=False)
+        return pd.Series(
+            [bool(x) if not pd.isnull(x) else None for x in data],
+            index=data.index,
+            dtype=object,
+        )
 
     def to_representation(self, value):
         return value
@@ -266,7 +278,11 @@ class FloatField(IntegerField):
 
         try:
             if self.allow_null:
-                data = data.apply(lambda x: float(x) if not pd.isnull(x) else None, convert_dtype=False)
+                data = pd.Series(
+                    [float(x) if not pd.isnull(x) else None for x in data],
+                    index=data.index,
+                    dtype=object,
+                )
             else:
                 data = data.astype(float)
         except ValueError:
@@ -357,7 +373,11 @@ class DateField(Field):
         try:
             data = pd.to_datetime(data, format=self.format, errors='coerce' if self.allow_null else 'raise').dt.date
             if self.allow_null:
-                data = data.apply(lambda x: x if not pd.isnull(x) else self.replace_null, convert_dtype=False)
+                data = pd.Series(
+                    [x if not pd.isnull(x) else self.replace_null for x in data],
+                    index=data.index,
+                    dtype=object,
+                )
         except ValueError:
             self.error_manager.log_error(error=errors.IncorrectDateFormatError(format=self.format), s=data)
             self.fail('invalid', format=self.format)
@@ -385,7 +405,11 @@ class DateTimeField(Field):
         try:
             data = pd.to_datetime(data, format=self.format, errors='raise')
             if self.allow_null:
-                data = data.apply(lambda x: x if not pd.isnull(x) else None, convert_dtype=False)
+                data = pd.Series(
+                    [x if not pd.isnull(x) else None for x in data],
+                    index=data.index,
+                    dtype=object,
+                )
         except ValueError:
             self.error_manager.log_error(
                 error=errors.IncorrectDateTimeFormatError(format=self.format), s=data
