@@ -23,7 +23,7 @@ class DataFrameDatabaseSaver(BaseDataFrameDatabaseSaver):
             return [] if returning_columns else None
         except Exception as e:
             self._connection.rollback()
-            print(e)
+            print(f'PandasIO saving error: {e}')
             return self.upsert(dataframe=dataframe, model=model, returning_columns=returning_columns)
         finally:
             buffer.close()
