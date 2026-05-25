@@ -1,3 +1,4 @@
+from typing import final
 import io
 
 from .base import BaseDataFrameDatabaseSaver
@@ -19,12 +20,13 @@ class DataFrameDatabaseSaver(BaseDataFrameDatabaseSaver):
             with self._connection.cursor() as cursor:
                 cursor.copy_expert(sql=copy_query, file=buffer)
             self._connection.commit()
-            buffer.close()
             return [] if returning_columns else None
         except Exception as e:
             self._connection.rollback()
             print(e)
             return self.upsert(dataframe=dataframe, model=model, returning_columns=returning_columns)
+        finally:
+            buffer.close()
 
     def upsert(self, dataframe, model, returning_columns=None):
         if dataframe.empty:
