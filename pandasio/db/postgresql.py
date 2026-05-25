@@ -1,4 +1,3 @@
-from typing import final
 import io
 
 from .base import BaseDataFrameDatabaseSaver
