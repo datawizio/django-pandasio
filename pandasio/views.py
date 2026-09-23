@@ -1,12 +1,9 @@
 import pandas as pd
-
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.response import Response
-from rest_framework import status
 
 
 class BaseDataFrameView(viewsets.ModelViewSet):
-
     def create(self, request, *args, **kwargs):
         dataframe = self.get_dataframe_from_request(request=request)
         serializer = self.get_serializer(data=dataframe)
@@ -20,14 +17,12 @@ class BaseDataFrameView(viewsets.ModelViewSet):
 
 
 class RecordsDataFrameView(BaseDataFrameView):
-
     @classmethod
     def get_dataframe_from_request(cls, request):
         return pd.DataFrame.from_records(request.data)
-    
-    
-class CSVDataFrameView(BaseDataFrameView):
 
+
+class CSVDataFrameView(BaseDataFrameView):
     @classmethod
     def get_dataframe_from_request(cls, request):
         file = next(request.FILES.values())
@@ -36,7 +31,6 @@ class CSVDataFrameView(BaseDataFrameView):
 
 
 class JSONDataFrameView(BaseDataFrameView):
-
     @classmethod
     def get_dataframe_from_request(cls, request):
         file = next(request.FILES.values())

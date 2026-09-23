@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Linters
+.ruff_cache/
+
 # Distribution / packaging
 .Python
 build/
@@ -132,3 +135,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# uv files
+uv.lock

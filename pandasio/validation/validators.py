@@ -1,18 +1,16 @@
-from django.core.validators import deconstructible
 from django.core import validators as django_validators
+from django.core.validators import deconstructible
 
 
 class BaseValidator(django_validators.BaseValidator):
-
     def get_valid_data(self, data):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 @deconstructible
 class MaxValueValidator(BaseValidator):
-
-    message = 'Ensure column values are less than or equal to %(limit_value)s'
-    code = 'max_value'
+    message = "Ensure column values are less than or equal to %(limit_value)s"
+    code = "max_value"
 
     def get_valid_data(self, data):
         return data[data <= self.limit_value]
@@ -23,9 +21,8 @@ class MaxValueValidator(BaseValidator):
 
 @deconstructible
 class MinValueValidator(BaseValidator):
-
-    message = 'Ensure column values are greater than or equal to %(limit_value)s'
-    code = 'min_value'
+    message = "Ensure column values are greater than or equal to %(limit_value)s"
+    code = "min_value"
 
     def get_valid_data(self, data):
         return data[data >= self.limit_value]
@@ -36,9 +33,8 @@ class MinValueValidator(BaseValidator):
 
 @deconstructible
 class MinLengthValidator(BaseValidator):
-
-    message = 'Ensure column values length are greater than or equal to %(limit_value)s'
-    code = 'min_length'
+    message = "Ensure column values length are greater than or equal to %(limit_value)s"
+    code = "min_length"
 
     def get_valid_data(self, data):
         return data[self.clean(data) >= self.limit_value]
@@ -52,9 +48,8 @@ class MinLengthValidator(BaseValidator):
 
 @deconstructible
 class MaxLengthValidator(BaseValidator):
-
-    message = 'Ensure column values length are less than or equal to %(limit_value)s'
-    code = 'max_length'
+    message = "Ensure column values length are less than or equal to %(limit_value)s"
+    code = "max_length"
 
     def get_valid_data(self, data):
         return data[self.clean(data) <= self.limit_value]
@@ -67,11 +62,16 @@ class MaxLengthValidator(BaseValidator):
 
 
 class UniqueTogetherValidator(BaseValidator):
+    message = "Ensure values are not duplicated by %(limit_value)s"
+    code = "duplicated"
 
-    message = 'Ensure values are not duplicated by %(limit_value)s'
-    code = 'duplicated'
-
-    def __init__(self, limit_value: list | tuple, message=None, *, visible_names: list | tuple = ()) -> None:
+    def __init__(
+        self,
+        limit_value: list | tuple,
+        message=None,
+        *,
+        visible_names: list | tuple = (),
+    ) -> None:
         """
         Many fields could have another `source` and the user would see different names in warning
         To avoid this, we use the `visible_names` variable

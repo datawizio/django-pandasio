@@ -1,8 +1,9 @@
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import ClassVar, List, Any, Optional, Tuple, Union
+from typing import Any, ClassVar, List, Optional, Tuple, Union
 
 import pandas as pd
+
 from . import validators
 
 
@@ -33,7 +34,9 @@ class FieldValidationErrorManager:
     def log_error(self, error: Error, s: Optional[pd.Series]) -> None:
         self.errors.append(error.to_dict(s))
 
-    def log_validator_error(self, validator: "validators.BaseValidator", s: Union[pd.Series, pd.DataFrame]) -> None:
+    def log_validator_error(
+        self, validator: "validators.BaseValidator", s: Union[pd.Series, pd.DataFrame]
+    ) -> None:
         result = {}
         if isinstance(validator, validators.MinValueValidator):
             result = MinValueError(min_value=validator.limit_value).to_dict(s)
@@ -44,9 +47,13 @@ class FieldValidationErrorManager:
         elif isinstance(validator, validators.MaxLengthValidator):
             result = MaxLengthError(max_value=validator.limit_value).to_dict(s)
         elif isinstance(validator, validators.UniqueTogetherValidator):
-            result = NonUniqueTogetherError(unique_together_fields=validator.limit_value).to_dict(s)
+            result = NonUniqueTogetherError(
+                unique_together_fields=validator.limit_value
+            ).to_dict(s)
         else:
-            raise NotImplementedError(f"Support for `{validator.__class__.__name__}` validator not implemented yet.")
+            raise NotImplementedError(
+                f"Support for `{validator.__class__.__name__}` validator not implemented yet."
+            )
         self.errors.append(result)
 
 
@@ -56,7 +63,11 @@ class NonNumericValueError(Error):
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
         return self.form_response(
-            s=s.loc[s.apply(lambda x: not str(x).lstrip("-").replace(".", "", 1).isnumeric())].dropna()
+            s=s.loc[
+                s.apply(
+                    lambda x: not str(x).lstrip("-").replace(".", "", 1).isnumeric()
+                )
+            ].dropna()
         )
 
 
@@ -82,7 +93,9 @@ class MinValueError(Error):
     min_value: int
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
-        return self.form_response(s=s.loc[s < self.min_value], limit_value=self.min_value)
+        return self.form_response(
+            s=s.loc[s < self.min_value], limit_value=self.min_value
+        )
 
 
 @dataclass
@@ -91,7 +104,9 @@ class MaxValueError(Error):
     max_value: int
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
-        return self.form_response(s=s.loc[s > self.max_value], limit_value=self.max_value)
+        return self.form_response(
+            s=s.loc[s > self.max_value], limit_value=self.max_value
+        )
 
 
 @dataclass
@@ -100,7 +115,9 @@ class MinLengthError(Error):
     min_value: int
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
-        return self.form_response(s=s.loc[s.str.len() < self.min_value], limit_value=self.min_value)
+        return self.form_response(
+            s=s.loc[s.str.len() < self.min_value], limit_value=self.min_value
+        )
 
 
 @dataclass
@@ -109,7 +126,9 @@ class MaxLengthError(Error):
     max_value: int
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
-        return self.form_response(s=s.loc[s.str.len() > self.max_value], limit_value=self.max_value)
+        return self.form_response(
+            s=s.loc[s.str.len() > self.max_value], limit_value=self.max_value
+        )
 
 
 @dataclass
@@ -132,8 +151,7 @@ class IncorrectDateFormatError(Error):
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
         s = pd.to_datetime(s, format=self.format, errors="coerce").dt.date
         return self.form_response(
-            s=s[s.apply(lambda x: x is pd.NaT)],
-            format=self.format
+            s=s[s.apply(lambda x: x is pd.NaT)], format=self.format
         )
 
 
@@ -167,7 +185,7 @@ class BlankNotAllowed(Error):
     CODE = "BLANK_NOT_ALLOWED"
 
     def to_dict(self, s: Optional[pd.Series], *args: Any, **kwargs: Any) -> dict:
-        return self.form_response(s=s.loc[s == ''])
+        return self.form_response(s=s.loc[s == ""])
 
 
 @dataclass

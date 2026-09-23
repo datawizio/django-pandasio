@@ -1,7 +1,9 @@
 import io
 
+from psycopg2.extras import execute_values
+
 from .base import BaseDataFrameDatabaseSaver
-from .utils import get_unique_field_names, get_upsert_clause_sql, get_insert_values_sql
+from .utils import get_unique_field_names, get_upsert_clause_sql
 
 
 class DataFrameDatabaseSaver(BaseDataFrameDatabaseSaver):
@@ -22,10 +24,12 @@ class DataFrameDatabaseSaver(BaseDataFrameDatabaseSaver):
             return [] if returning_columns else None
         except Exception as e:
             self._connection.rollback()
-            print(f'PandasIO saving error: {e}')
+            print(f"PandasIO saving error: {e}")
+            buffer.close()
             return self.upsert(dataframe=dataframe, model=model, returning_columns=returning_columns)
         finally:
-            buffer.close()
+            if not buffer.closed:
+                buffer.close()
 
     def upsert(self, dataframe, model, returning_columns=None):
         if dataframe.empty:
@@ -35,33 +39,52 @@ class DataFrameDatabaseSaver(BaseDataFrameDatabaseSaver):
         unique_columns = get_unique_field_names(model)
         upsert_clause = get_upsert_clause_sql(model, columns=columns)
 
-        conflict_statement = """
+        conflict_statement = (
+            """
             ON CONFLICT (%(unique_columns)s)
             %(do_statement)s
-        """ % {
-            'unique_columns': ', '.join(unique_columns),
-            'do_statement': 'DO UPDATE SET %s ' % upsert_clause if upsert_clause else 'DO NOTHING '
-        } if unique_columns else ''
+        """
+            % {
+                "unique_columns": ", ".join(unique_columns),
+                "do_statement": "DO UPDATE SET %s " % upsert_clause
+                if upsert_clause
+                else "DO NOTHING ",
+            }
+            if unique_columns
+            else ""
+        )
 
-        returning_statement = ('RETURNING %s' % ', '.join(returning_columns)) if returning_columns else ''
+        returning_statement = (
+            ("RETURNING %s" % ", ".join(returning_columns)) if returning_columns else ""
+        )
+
+        query = (
+            """
+            INSERT INTO %(table)s (%(columns)s)
+            VALUES %%s
+        """
+            % {
+                "table": model._meta.db_table,
+                "columns": ",".join(columns),
+            }
+            + conflict_statement
+            + returning_statement
+        )
+
+        rows = dataframe.itertuples(index=False, name=None)
 
         with self._connection.cursor() as cursor:
-            insert_statement = """
-                INSERT INTO %(table)s (%(columns)s)
-                VALUES %(values)s
-            """ % {
-                'table': model._meta.db_table,
-                'columns': ','.join(columns),
-                'values': get_insert_values_sql(cursor, dataframe.to_dict('split')['data'])
-            }
-
-            query = insert_statement + conflict_statement + returning_statement
-
             try:
-                cursor.execute(query)
+                returning = execute_values(
+                    cursor,
+                    query,
+                    rows,
+                    page_size=10000,
+                    fetch=bool(returning_columns),
+                )
                 self._connection.commit()
                 if returning_columns:
-                    return cursor.fetchall()
+                    return returning
             except Exception as e:
                 print(e)
                 self._connection.rollback()

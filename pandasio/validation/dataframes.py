@@ -1,20 +1,23 @@
-from importlib import import_module
 from collections import defaultdict
+from importlib import import_module
 
 import pandas as pd
-
-from django.db import connections
 from django.core.exceptions import ValidationError as DjangoValidationError
-
+from django.db import connections
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from rest_framework.fields import get_error_detail, SkipField
+from rest_framework.fields import (
+    MISSING_ERROR_MESSAGE,
+    SkipField,
+    empty,
+    get_error_detail,
+)
 from rest_framework.settings import api_settings
 from rest_framework.utils import representation
-from rest_framework.fields import MISSING_ERROR_MESSAGE, empty
 
 from ..db.utils import get_dataframe_saver_backend
 from .errors import FieldValidationErrorManager
+
 
 ALL_FIELDS = '__all__'
 
@@ -61,8 +64,11 @@ class DataFrameSerializer(serializers.Serializer):
                 api_settings.NON_FIELD_ERRORS_KEY: [message]
             }, code='invalid')
 
-        ret = self.initial_data.loc[:, []]
         fields = self._writable_fields
+        columns = {}
+        row_index = self.initial_data.index
+        n_initial = self.initial_data.shape[0]
+        wiped = False
 
         for field in fields:
             validate_method = getattr(self, 'validate_' + field.field_name, None)
@@ -70,26 +76,25 @@ class DataFrameSerializer(serializers.Serializer):
             try:
                 validated_value = field.run_validation(primitive_value)
 
-                if ret.shape[0] == 0:
+                if wiped or n_initial == 0:
                     raise SkipField()
 
                 if primitive_value is empty and field.required:
-                    ret = pd.DataFrame()
+                    wiped = True
+                    columns.clear()
                     raise SkipField()
 
                 if validate_method is not None:
                     validated_value = validate_method(validated_value)
 
+                col = field.source_attrs[0]
                 if not isinstance(validated_value, pd.Series):
-                    ret[field.source_attrs[0]] = validated_value
+                    columns[col] = validated_value
                     raise SkipField()
 
-                do_join = not (self.initial_data.shape[0] == validated_value.size == ret.shape[0])
-
-                if do_join:
-                    ret = ret.join(validated_value.to_frame(field.source_attrs[0]), how='inner')
-                else:
-                    ret[field.source_attrs[0]] = validated_value
+                columns[col] = validated_value
+                if not (n_initial == validated_value.size == len(row_index)):
+                    row_index = row_index.intersection(validated_value.index)
 
             except SkipField:
                 pass
@@ -98,10 +103,33 @@ class DataFrameSerializer(serializers.Serializer):
                 self._errors[field.field_name] = field.errors
                 self._human_errors[field.field_name] = field.human_errors
 
+        if wiped:
+            return pd.DataFrame()
+        if not columns:
+            return self.initial_data.loc[:, []]
+
+        series_cols = {}
+        for col, value in columns.items():
+            if not isinstance(value, pd.Series):
+                continue
+            if value.index is row_index or value.index.equals(row_index):
+                series_cols[col] = value
+            else:
+                series_cols[col] = value.reindex(row_index)
+        if series_cols:
+            ret = pd.concat(series_cols, axis=1)
+            ret = ret.reindex(columns=list(columns))
+        else:
+            ret = pd.DataFrame(index=row_index, columns=list(columns))
+        for col, value in columns.items():
+            if col not in series_cols:
+                ret[col] = value
         return ret
 
     def to_representation(self, instance):
-        raise NotImplemented('`to_representation()` not implemented for `DataFrameSerializer`')
+        raise NotImplementedError(
+            "`to_representation()` not implemented for `DataFrameSerializer`"
+        )
 
     def is_valid(self, raise_exception=False):
         assert not hasattr(self, 'restore_object'), (
