@@ -333,18 +333,17 @@ class CharField(Field):
                 validators.MinLengthValidator(self.min_length, message=message)
             )
 
-    def _to_char(self, x):
-        if pd.isnull(x):
-            return None if self.allow_null else x
-        if hasattr(x, 'is_integer') and x.is_integer():
-            return str(int(x))
-        return str(x)
-
     def to_internal_value(self, data):
-        if data.dtype != object and not pd.api.types.is_float_dtype(data.dtype):
-            data = data.astype(str)
+        if data.dtype != object:
+            if self.allow_null and data.dtype == float:
+                data = data.apply(lambda x: str(int(x)) if x.is_integer() else str(x) if not pd.isnull(x) else None)
+            else:
+                data = data.astype(str)
         else:
-            data = data.apply(self._to_char)
+            if self.allow_null:
+                data = data.apply(lambda x: str(x) if not pd.isnull(x) else None)
+            else:
+                data = data.astype(str)
         data = data.str.strip() if self.trim_whitespace else data
         if (data == '').any() and not self.allow_blank:
             self.error_manager.log_error(error=errors.BlankNotAllowed(), s=data)
