@@ -95,13 +95,24 @@ class DataFrameSerializer(serializers.Serializer):
                 pass
 
             if field.errors:
-                self._errors[field.field_name] = field.errors
-                self._human_errors[field.field_name] = field.human_errors
+                existing = self._errors[field.field_name]
+                if existing:
+                    if not isinstance(existing, list):
+                        existing = list(existing)
+                    for item in field.errors:
+                        if item not in existing:
+                            existing.append(item)
+                    self._errors[field.field_name] = existing
+                else:
+                    self._errors[field.field_name] = field.errors
+                self._human_errors[field.field_name].extend(field.human_errors or [])
 
         return ret
 
     def to_representation(self, instance):
-        raise NotImplemented('`to_representation()` not implemented for `DataFrameSerializer`')
+        raise NotImplementedError(
+            "`to_representation()` not implemented for `DataFrameSerializer`"
+        )
 
     def is_valid(self, raise_exception=False):
         assert not hasattr(self, 'restore_object'), (
