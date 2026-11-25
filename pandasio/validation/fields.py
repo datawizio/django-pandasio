@@ -1,4 +1,5 @@
 import warnings
+
 import pandas as pd
 
 from rest_framework import serializers
@@ -30,8 +31,8 @@ class NotProvided(object):
 class Field(serializers.Field):
 
     default_error_messages = {
-        'required': 'This column is required',
-        'null': 'This column cannot contain null values'
+        "required": "Required field “{field}” is missing from the data.",
+        "null": "Field “{field}” is NULL. This field is required and cannot be NULL.",
     }
 
     def __init__(self, *args, **kwargs):
@@ -43,6 +44,14 @@ class Field(serializers.Field):
         self._errors = set()
 
     @property
+    def field_name(self):
+        return getattr(self, "_field_name", None) or ""
+
+    @field_name.setter
+    def field_name(self, value):
+        self._field_name = value
+
+    @property
     def errors(self):
         return self._errors
 
@@ -52,12 +61,25 @@ class Field(serializers.Field):
 
     def fail(self, key, **kwargs):
         try:
-            msg = self.error_messages[key].format(**kwargs)
+            template = self.error_messages[key]
         except KeyError:
             class_name = self.__class__.__name__
             msg = MISSING_ERROR_MESSAGE.format(class_name=class_name, key=key)
+        else:
+            kwargs.setdefault("field", self.field_name)
+            msg = template.format(**kwargs)
 
         self._errors.add(msg) if isinstance(self._errors, set) else self._errors.append(msg)
+
+    def get_validator_message(self, validator, fallback):
+        code = getattr(validator, "code", None)
+        template = self.error_messages.get(code)
+        if not template:
+            return str(fallback)
+        return template.format(
+            field=self.field_name,
+            **{code: getattr(validator, "limit_value", "")},
+        )
 
     def to_internal_value(self, data):
         return data
@@ -132,26 +154,31 @@ class Field(serializers.Field):
                 )
                 validator.set_context(self)
 
+            exc = None
             try:
                 if getattr(validator, 'requires_context', False):
                     validator(value, self)
                 else:
                     validator(value)
-            except ValidationError as exc:
+            except ValidationError as err:
                 # If the validation error contains a mapping of fields to
                 # errors then simply raise it immediately rather than
                 # attempting to accumulate a list of errors.
-                if isinstance(exc.detail, dict):
-                    print('Raise dict Validation/fields')
-                    print(exc.detail)
+                if isinstance(err.detail, dict):
+                    print("Raise dict Validation/fields")
+                    print(err.detail)
                     raise
-                self.error_manager.log_validator_error(validator=validator, s=value)
-                value = validator.get_valid_data(value)
-                self._errors.add(exc.detail)
-            except DjangoValidationError as exc:
-                self.error_manager.log_validator_error(validator=validator, s=value)
-                value = validator.get_valid_data(value)
-                self._errors |= set(get_error_detail(exc))
+                exc = err
+                fallback = err.detail
+            except DjangoValidationError as err:
+                exc = err
+                details = get_error_detail(err)
+                fallback = details[0] if details else ""
+            finally:
+                if exc is not None:
+                    self.error_manager.log_validator_error(validator=validator, s=value)
+                    value = validator.get_valid_data(value)
+                    self._errors.add(self.get_validator_message(validator, fallback))
 
         return value
 
@@ -173,10 +200,16 @@ class _UnvalidatedField(Field):
 class IntegerField(Field):
 
     default_error_messages = {
-        'invalid': 'A valid integer values are required',
-        'max_value': 'Ensure column values are less than or equal to {max_value}',
-        'min_value': 'Ensure column values are greater than or equal to {min_value}',
-        'overflow': 'Passed values are too large'
+        "invalid": (
+            "Field “{field}” must contain a whole number (e.g. 5, 120). "
+            "Decimals, text and other characters are not allowed."
+        ),
+        "max_value": "Field “{field}” value is too large. Maximum allowed value: {max_value}.",
+        "min_value": "Field “{field}” value is too small. Minimum allowed value: {min_value}.",
+        "overflow": (
+            "Field “{field}” contains a number too large to process. "
+            "Check the values for extra digits or errors."
+        ),
     }
 
     def __init__(self, **kwargs):
@@ -184,15 +217,9 @@ class IntegerField(Field):
         self.min_value = kwargs.pop('min_value', None)
         super().__init__(**kwargs)
         if self.max_value is not None:
-            message = self.error_messages['max_value'].format(max_value=self.max_value)
-            self.validators.append(
-                validators.MaxValueValidator(self.max_value, message=message)
-            )
+            self.validators.append(validators.MaxValueValidator(self.max_value))
         if self.min_value is not None:
-            message = self.error_messages['min_value'].format(min_value=self.min_value)
-            self.validators.append(
-                validators.MinValueValidator(self.min_value, message=message)
-            )
+            self.validators.append(validators.MinValueValidator(self.min_value))
 
     def to_internal_value(self, data):
         if data.dtype == int:
@@ -271,6 +298,9 @@ class NullBooleanField(Field):
 
 
 class FloatField(IntegerField):
+    default_error_messages = {
+        "invalid": "Field “{field}” must contain numeric values only.",
+    }
 
     def to_internal_value(self, data):
         if data.dtype == float and not self.allow_null:
@@ -309,10 +339,10 @@ class FloatField(IntegerField):
 class CharField(Field):
 
     default_error_messages = {
-        'invalid': 'Not a valid string',
-        'blank': 'This column may not be blank',
-        'max_length': 'Ensure column values have no more than {max_length} characters',
-        'min_length': 'Ensure column values have at least {min_length} characters',
+        "invalid": "Field “{field}” must contain a string (text).",
+        "blank": "Field “{field}” contains an empty value. This field is required and cannot be blank.",
+        "max_length": "Field “{field}” value is too long. Maximum length: {max_length} characters.",
+        "min_length": "Field “{field}” value is too short. Minimum length: {min_length} characters.",
     }
     initial = ''
 
@@ -324,15 +354,9 @@ class CharField(Field):
         self.trim_extra = kwargs.pop('trim_extra', False)
         super().__init__(**kwargs)
         if self.max_length is not None and not self.trim_extra:
-            message = self.error_messages['max_length'].format(max_length=self.max_length)
-            self.validators.append(
-                validators.MaxLengthValidator(self.max_length, message=message)
-            )
+            self.validators.append(validators.MaxLengthValidator(self.max_length))
         if self.min_length is not None:
-            message = self.error_messages['min_length'].format(min_length=self.min_length)
-            self.validators.append(
-                validators.MinLengthValidator(self.min_length, message=message)
-            )
+            self.validators.append(validators.MinLengthValidator(self.min_length))
 
     def to_internal_value(self, data):
         if data.dtype != object:
@@ -361,7 +385,7 @@ class CharField(Field):
 class DateField(Field):
 
     default_error_messages = {
-        'invalid': 'Date values have wrong format. Use one of these formats instead: {format}',
+        "invalid": "Field “{field}” has a wrong date format. Use one of these formats: {format}.",
     }
 
     def __init__(self, **kwargs):
@@ -393,7 +417,7 @@ class DateField(Field):
 class DateTimeField(Field):
 
     default_error_messages = {
-        'invalid': 'Datetime values have wrong format. Use one of these formats instead: {format}',
+        "invalid": "Field “{field}” has a wrong datetime format. Use one of these formats: {format}.",
     }
 
     def __init__(self, **kwargs):
